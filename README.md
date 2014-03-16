@@ -1,10 +1,8 @@
-<<<<<<< HEAD
-actor-chat
-==========
+=======
+akka-irc
+========
 
-chat client and server with remote actors. This branch uses the *Akka actors* whereas the master branch uses the built in scala actors from Scala 2.9.x
-
-Thanks to the guys from LSUG for contributions to making it more Scala-esque
+A simple IRC-like client and server implementation in Scala and Akka. Thanks to the guys from LSUG for contributions to making it more Scala-esque
 
 ### Heroku
 
@@ -15,10 +13,3 @@ on how to deploy the application. Other useful commands include:
 `heroku logs -t` - Tails the log<br>
 `git push heroku akka-actors:master` - Pushes the latest version to heroku<br>
 
-
-=======
-akka-irc
-========
-
-A simple IRC-like client and server implementation in Scala and Akka
->>>>>>> ea9b83086abd24c56bdecab07561c618a3dea1e1
