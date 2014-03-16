@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 actor-chat
 ==========
 
@@ -15,3 +16,9 @@ on how to deploy the application. Other useful commands include:
 `git push heroku akka-actors:master` - Pushes the latest version to heroku<br>
 
 
+=======
+akka-irc
+========
+
+A simple IRC-like client and server implementation in Scala and Akka
+>>>>>>> ea9b83086abd24c56bdecab07561c618a3dea1e1

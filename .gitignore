@@ -1,10 +1,10 @@
+<<<<<<< HEAD
 logs
 project/project
 project/target
-target
-tmp
+project/boot/
+project/plugins/project/
 .history
-dist
 /.idea
 /*.iml
 /out
@@ -14,3 +14,12 @@ dist
 /RUNNING_PID
 /.settings
 activator-sbt-*-shim.sbt
+*.class
+*.log
+# sbt specific
+dist/*
+target/
+lib_managed/
+src_managed/
+# Scala-IDE specific
+.scala_dependencies
