@@ -20,13 +20,10 @@ Steps
 
 * SBT will download all the required dependencies and provide you with 2 options 
 
-    ` Multiple main classes detected, select one to run:
-    
+    `Multiple main classes detected, select one to run:
     [1] kaning.actors.ChatClientApplication
-    
     [2] kaning.actors.ChatServerApplication
-    
-    Enter number: `
+    Enter number:`
 
 * Please note that this will not be in the same order
 * First run the server so in the example above type in 2 and hit return, if in your case the server is the first option type 1
