@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 logs
 project/project
 project/target
@@ -22,4 +21,6 @@ target/
 lib_managed/
 src_managed/
 # Scala-IDE specific
-.scala_dependencies
+.scala_dependencies 
+vagrant* 
+.vagrant
