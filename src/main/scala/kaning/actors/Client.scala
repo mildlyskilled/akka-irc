@@ -18,6 +18,11 @@ object ChatClientApplication {
 
   def main(args:Array[String]) {
 
+
+    def distillIpAddresses(interface:NetworkInterface):String = {
+        interface.getInterfaceAddresses.filter(_.getBroadcast != null).head.getAddress.getHostAddress
+    }
+
     println("Starting Akka Chat Client Actor")
     /* construct client with current machine's IP address instead of using the config value
     * get network interfaces make sure it's not loopbak (i.e. points outside of itself)
@@ -29,13 +34,47 @@ object ChatClientApplication {
     * I use getBroadcast here as a subtle way of filtering out IPV6 addresses they have 
     * a null value
     */
-    val ipAddress = interfaces.head.getInterfaceAddresses.filter(_.getBroadcast != null).head.getAddress.getHostAddress 
+    val ipAddresses = for( i <- interfaces) yield distillIpAddresses(i)
+    
+    /**
+    * First make sure the ip address in the configuration file is not 
+    * in the actual IP address list found on this machine
+    */
+    val clientconfig = ConfigFactory.load.getConfig("chatclient")
+    val ipaddressinconfig = clientconfig.getString("akka.remote.netty.tcp.hostname")
+
+    /**
+    * If the ip address in our configuration is also in the ip addresses in this "distilled"
+    * list just use that otherwise if we have more than one give options and if there's only
+    * one IP address use that
+    */
+    val ipAddress = {
+        if(!ipAddresses.contains(ipaddressinconfig)){
+            if(ipAddresses.size > 1){
+                ipAddresses foreach println
+                var ip = ""
+                /**
+                * Make sure the IP address typed in here is valid otherwise this prompt
+                * will be displayed FOREVER (unitl a keyboard interrupt of course)
+                */
+                while(!ipAddresses.contains(ip.trim)){
+                    ip = new ConsoleReader().readLine("Which IP Address shall we bind to?  ")
+                }
+                ip.trim
+            }else{
+                ipAddresses.head
+            }    
+        }else{
+            ipaddressinconfig
+        }
+        
+    }
+
     // In some circles this would be the username
     val identity = new ConsoleReader().readLine("identify yourself: ")
 
-    /* tinker with configurations so that our client uses it's own IP address and not one that is 
-    * hard-coded in application.conf. In short it this line was not there my ip would be 
-    * 127.0.0.1
+    /**
+    * Apply the ip address to the configuration we will be using to construct the client actor
     */
     val clientConfig = ConfigFactory.parseString(s"""akka.remote.netty.tcp.hostname="$ipAddress" """)
     val defaultConfig = ConfigFactory.load.getConfig("chatclient")
@@ -92,7 +131,7 @@ object ChatClientApplication {
     println("Exiting...")
     // Tell the server to remove us from currently connected clients
     server.tell(Unregister(identity), client)
-    // find a graceful way to exit the application here
+    //@TODO find a graceful way to exit the application here
 
   }
 }
