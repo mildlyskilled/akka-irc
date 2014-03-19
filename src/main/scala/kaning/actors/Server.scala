@@ -29,9 +29,10 @@ class ChatServerActor extends Actor {
           println(s"${identity} tried to join AGAIN from ${client}")
           sender ! ChatInfo(s"REGISTRATION FAILED: ${identity} is already registered")
         }else{
-          println(s"${identity} joined this room from ${client}")
+          println(s"${identity} joined this channel from ${client}")
           connectedClients += (identity -> client)
-          sender ! ChatInfo("REGISTERED")
+          sender ! ChatInfo("REGISTERED SUCCESSFULLY")
+          connectedClients.values.filter(_ != sender).foreach(_ ! ChatInfo(s"${identity} join this channel"))
         }
 
     case m @ PrivateMessage(target, _) =>
@@ -46,10 +47,11 @@ class ChatServerActor extends Actor {
       sender ! RegisteredClientList(connectedClients.keys)
 
     case Unregister(identity) =>
-        println(s"${identity} left this room")
+        println(s"${identity} left this channel")
         // remove client from registered client set and send poison pill
         connectedClients.remove(identity).foreach(_ ! PoisonPill) //<-- this is why we use the MUTABLE map
+        connectedClients.values.filter(_ != sender).foreach(_ ! ChatInfo(s"${identity} left this channel"))
 
-    case _ => println("Stop mumbling and articulate, you're off protocol buddy")
+    case _ => sender ! ChatInfo("Stop mumbling and articulate, you're off protocol buddy")
   }
 }

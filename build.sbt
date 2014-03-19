@@ -12,6 +12,6 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % "2.2.3",
   "com.typesafe.akka" %% "akka-testkit" % "2.2.3",
   "com.typesafe.akka" %% "akka-remote" % "2.2.3",
-  "org.scala-lang" % "jline" % "2.11.0-M3"
+  "org.scala-lang" % "jline" % "2.10.3"
 )
 

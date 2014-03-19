@@ -119,6 +119,9 @@ object ChatClientApplication {
 
         case "/leave" => 
           server.tell(Unregister(identity), client)
+        
+        case "/offprotocol" => 
+          server.tell("OFF PROTOCOL MESSAGE", client)
           
         case privateMessageRegex(target, msg) =>
           server.tell(PrivateMessage(target, msg), client)
@@ -147,7 +150,7 @@ class ChatClientActor  extends Actor {
         println ("INFO: ["+ msg +"]")
 
       case PrivateMessage(_, message) =>
-        println(s"- ${sender.path.name}: $message")
+        println(s"- ${sender.path.name}(PM): $message")
 
       case RegisteredClientList(list) =>
         for (x <- list) println(x)
