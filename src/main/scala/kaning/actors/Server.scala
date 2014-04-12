@@ -43,7 +43,7 @@ class ChatServerActor extends EventsourcedProcessor {
   var channels = Map.empty[String, ActorRef]
   var users = Seq.empty[User]
 
-  context.system.scheduler.schedule(10 minutes, 10 minutes, self, TakeSnapshot)(context.dispatcher)
+  context.system.scheduler.schedule(2 minutes, 2 minutes, self, TakeSnapshot)(context.dispatcher)
 
   def updateState(evt: ChatServerEvent) = evt match {
     case CreatedChannel(channelId) =>
