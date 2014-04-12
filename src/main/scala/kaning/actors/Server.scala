@@ -96,6 +96,8 @@ class ChatServerActor extends EventsourcedProcessor {
       sender ! ChannelList(channels.keys)
     case m@ChatMessage(channel, msg) =>
       channels.get(channel).foreach(_.forward(m))
-    case TakeSnapshot  => saveSnapshot(ChatServerState(users, channels))
+    case TakeSnapshot  =>
+      println("Taking snapshot...")
+      saveSnapshot(ChatServerState(users, channels))
   }
 }
