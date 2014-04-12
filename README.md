@@ -45,3 +45,5 @@ on how to deploy the application. Other useful commands include:
 `heroku logs -t` - Tails the log<br>
 `git push heroku akka-actors:master` - Pushes the latest version to heroku<br>
 
+Added persistence at Scala Hack 12th April
+
