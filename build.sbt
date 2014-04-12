@@ -13,6 +13,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit" % "2.3.0",
   "com.typesafe.akka" %% "akka-remote" % "2.3.0",
   "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.0",
-  "org.scala-lang" % "jline" % "2.10.3"
+  "org.scala-lang" % "jline" % "2.10.3",
+  "joda-time" % "joda-time" % "2.3"
 )
 
