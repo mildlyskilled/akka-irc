@@ -71,7 +71,7 @@ object ChatClientApplication {
     }
 
     // In some circles this would be the username
-    val identity = new ConsoleReader().readLine("identify yourself: ")
+    val user = User(new ConsoleReader().readLine("identify yourself: "))
 
     /**
     * Apply the ip address to the configuration we will be using to construct the client actor
@@ -84,7 +84,7 @@ object ChatClientApplication {
     * the parsed string and the default configs from the akka remote sub-system
     */
     val system = ActorSystem("AkkaChat", completeConfig)
-    
+
     /*
     * get the server reference here because we will bind and forward messages to
     * it from our nifty console input
@@ -96,17 +96,17 @@ object ChatClientApplication {
     val server = system.actorSelection(serverPath) // <-- this is where we get the server reference
 
     // NOW CONSTRUCT THE CLIENT using as a member of the system defined above
-    val client = system.actorOf(Props(classOf[ChatClientActor]), name = identity)
-    
+    val client = system.actorOf(Props(classOf[ChatClientActor]), name = user.identity)
+
     // some input parsing logic to filter out private messages and so special things to it
     // like NOT Broadcast it to all connected clients
     val privateMessageRegex = """^@([^\s]+) (.*)$""".r
-	
+
     // we can implement a help feature here to explain the protocol
     println("Type /join to join the chat room")
 
-    /* Iterate infinitely over a stream created from our jline console reader object and 
-    * use some functional concepts over this i.e. pattern matching takeWhile and the 
+    /* Iterate infinitely over a stream created from our jline console reader object and
+    * use some functional concepts over this i.e. pattern matching takeWhile and the
     * lovely foreach
     */
     Iterator.continually(new ConsoleReader().readLine("> ")).takeWhile(_ != "/exit").foreach { msg =>
@@ -115,14 +115,11 @@ object ChatClientApplication {
           server.tell(RegisteredClients, client)
 
         case "/join" =>
-          server.tell(RegisterClientMessage(client, identity), client)
+          server.tell(RegisterClientMessage(client, user), client)
 
         case "/leave" => 
-          server.tell(Unregister(identity), client)
-        
-        case "/offprotocol" => 
-          server.tell("OFF PROTOCOL MESSAGE", client)
-          
+          server.tell(Unregister(user), client)
+
         case privateMessageRegex(target, msg) =>
           server.tell(PrivateMessage(target, msg), client)
 
@@ -133,7 +130,7 @@ object ChatClientApplication {
 
     println("Exiting...")
     // Tell the server to remove us from currently connected clients
-    server.tell(Unregister(identity), client)
+    server.tell(Unregister(user), client)
     //@TODO find a graceful way to exit the application here
 
   }
