@@ -29,7 +29,7 @@ object ChatClientApplication {
     * a null value
     */
     val ipAddresses = for( i <- interfaces) yield distillIpAddresses(i)
-    
+
     /**
     * First make sure the ip address in the configuration file is not 
     * in the actual IP address list found on this machine
@@ -57,11 +57,10 @@ object ChatClientApplication {
                 ip.trim
             }else{
                 ipAddresses.head
-            }    
+            }
         }else{
             ipaddressinconfig
         }
-        
     }
 
     // In some circles this would be the username
@@ -151,7 +150,7 @@ class ChatClientActor  extends Actor {
     def receive = {
 
       case ChatMessage(channel, message) =>
-        println(s"${channel}#${sender.path.name}: $message")
+        println(s"${sender.path.name}@${channel}: $message")
 
       case ChatInfo(msg) =>
         println ("INFO: ["+ msg +"]")

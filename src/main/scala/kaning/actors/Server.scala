@@ -35,7 +35,7 @@ object ChatServerActor {
 }
 
 class ChatServerActor extends EventsourcedProcessor {
-  case class ChatServerState(users: Seq[User], channels: Map[String, ActorRef])
+  case class ChatServerState(users: Seq[User], channels: Iterable[String])
   case object TakeSnapshot
 
   import ChatServerActor._
@@ -72,9 +72,11 @@ class ChatServerActor extends EventsourcedProcessor {
 
   val receiveRecover: Receive = {
     case evt: ChatServerEvent => updateState(evt)
-    case SnapshotOffer(_, ChatServerState(u, c)) =>
-      channels = c
-      users = u
+    case SnapshotOffer(_, ChatServerState(us, cs)) =>
+      channels = cs.foldLeft(Map.empty[String, ActorRef]) { (map, current) =>
+        map + (current -> context.actorOf(Channel.props(current)))
+      }
+      users = us
   }
 
   def receiveCommand: Receive = {
@@ -83,9 +85,9 @@ class ChatServerActor extends EventsourcedProcessor {
       persist(CreatedChannel(channelId))(updateState)
       persist(JoinedChannel(channelId, user, sender))(updateState)
     case JoinChannel(channelId, user) =>
-      persist(JoinedChannel(channelId: String, user, sender))(updateState)
+      persist(JoinedChannel(channelId, user, sender))(updateState)
     case LeaveChannel(channelId, user) =>
-      persist(LeftChannel(channelId: String, user, sender))(updateState)
+      persist(LeftChannel(channelId, user, sender))(updateState)
     case UserLogin(user) =>
       persist(UserLoggedIn(user))(updateState)
     case UserLeave(user) =>
@@ -98,6 +100,6 @@ class ChatServerActor extends EventsourcedProcessor {
       channels.get(channel).foreach(_.forward(m))
     case TakeSnapshot  =>
       println("Taking snapshot...")
-      saveSnapshot(ChatServerState(users, channels))
+      saveSnapshot(ChatServerState(users, channels.keys))
   }
 }
