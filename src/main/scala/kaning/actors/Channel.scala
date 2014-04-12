@@ -27,7 +27,7 @@ class Channel(val channelId: String) extends Actor {
     case CheckForEmptyChannel =>
       if (connectedClients.isEmpty) context.parent ! DeleteChannel(channelId)
 
-    case m @ ChatMessage(x: String) =>
+    case m @ ChatMessage(_, x: String) =>
       println(sender.path.name + ": " + x)
       // send this message to everyone in the room except the person who sent it
       connectedClients.values.filter(_ != sender).foreach(_.forward(m))

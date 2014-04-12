@@ -3,13 +3,7 @@ package kaning.actors
 import akka.actor._
 import akka.remote.RemoteScope
 import com.typesafe.config.ConfigFactory
-import kaning.messages.Unregister
-import kaning.messages.RegisteredClientList
-import kaning.messages.ChatMessage
-import kaning.messages.RegisterClientMessage
-import kaning.messages.ChatInfo
-import kaning.messages.PrivateMessage
-import kaning.messages.RegisteredClients
+import kaning.messages._
 import scala.tools.jline.console.ConsoleReader
 import java.net.{NetworkInterface, InetAddress}
 import scala.collection.JavaConversions._
@@ -102,8 +96,16 @@ object ChatClientApplication {
     // like NOT Broadcast it to all connected clients
     val privateMessageRegex = """^@([^\s]+) (.*)$""".r
 
+    val createChannelRegex = """^/create (\w+)""".r
+
+    val joinChannelRegex = """^/join (\w+)""".r
+
+    val sendChannelMessageRegex = """^#(\w+) (.*)""".r
+
     // we can implement a help feature here to explain the protocol
     println("Type /join to join the chat room")
+
+    import ChatServerActor._
 
     /* Iterate infinitely over a stream created from our jline console reader object and
     * use some functional concepts over this i.e. pattern matching takeWhile and the
@@ -114,17 +116,25 @@ object ChatClientApplication {
         case "/list" =>
           server.tell(RegisteredClients, client)
 
-        case "/join" =>
-          server.tell(RegisterClientMessage(client, user), client)
+        case "/channels" =>
+          server.tell(ListChannels, client)
 
-        case "/leave" => 
+        case createChannelRegex(channelName) =>
+          server.tell(CreateChannel(channelName, user), client)
+
+        case joinChannelRegex(channelName) =>
+          server.tell(JoinChannel(channelName, user), client)
+
+        case "/leave" =>
           server.tell(Unregister(user), client)
 
         case privateMessageRegex(target, msg) =>
           server.tell(PrivateMessage(target, msg), client)
 
-        case _ =>
-          server.tell(ChatMessage(msg), client)
+        case sendChannelMessageRegex(channel, msg) =>
+          server.tell(ChatMessage(channel, msg), client)
+
+        case x => println(s"Unrecognized command: $x")
       }
     }
 
@@ -140,8 +150,8 @@ class ChatClientActor  extends Actor {
 
     def receive = {
 
-      case ChatMessage(message) =>
-        println(s"${sender.path.name}: $message")
+      case ChatMessage(channel, message) =>
+        println(s"${channel}#${sender.path.name}: $message")
 
       case ChatInfo(msg) =>
         println ("INFO: ["+ msg +"]")
@@ -150,6 +160,9 @@ class ChatClientActor  extends Actor {
         println(s"- ${sender.path.name}(PM): $message")
 
       case RegisteredClientList(list) =>
+        for (x <- list) println(x)
+
+      case ChannelList(list) =>
         for (x <- list) println(x)
 
       case _ => println("Client Received something")

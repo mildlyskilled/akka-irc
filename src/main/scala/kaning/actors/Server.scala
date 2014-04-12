@@ -23,6 +23,7 @@ object ChatServerActor {
   case class UserLogin(user: User) extends ChatServerCommand
   case class UserLeave(user: User) extends ChatServerCommand
   case class DeleteChannel(channelId: String) extends ChatServerCommand
+  case object ListChannels extends ChatServerCommand
 
   sealed trait ChatServerEvent
   case class CreatedChannel(channelId: String) extends ChatServerEvent
@@ -48,18 +49,24 @@ class ChatServerActor extends EventsourcedProcessor {
     case CreatedChannel(channelId) =>
       val act = context.actorOf(Channel.props(channelId))
       channels = channels + (channelId -> act)
+      println(s"Channel created: $channelId")
     case msg@JoinedChannel(channelId, user, s) =>
       channels.get(channelId).foreach(_.tell(msg, s))
+      println(s"User $user joined channel $channelId")
     case msg@LeftChannel(channelId, user, s) =>
       channels.get(channelId).foreach(_.tell(msg, s))
+      println(s"User $user left channel $channelId")
     case UserLoggedIn(user) =>
       users = users :+ user
+      println(s"User $user logged in")
     case UserLeft(user) =>
       users = users.filter(_ != user)
+      println(s"User $user logged out")
     case DeletedChannel(channelId) =>
       // TODO: Try using sender here!
       channels.get(channelId).foreach(_ ! PoisonPill)
       channels = channels - channelId
+      println(s"Channel $channelId deleted")
     case evt => sys.error(s"Unrecognized event: $evt")
   }
 
@@ -85,6 +92,10 @@ class ChatServerActor extends EventsourcedProcessor {
       persist(UserLeft(user))(updateState)
     case DeleteChannel(channelId) =>
       persist(DeletedChannel(channelId))(updateState)
+    case ListChannels =>
+      sender ! ChannelList(channels.keys)
+    case m@ChatMessage(channel, msg) =>
+      channels.get(channel).foreach(_.forward(m))
     case TakeSnapshot  => saveSnapshot(ChatServerState(users, channels))
   }
 }
