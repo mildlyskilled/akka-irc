@@ -9,7 +9,7 @@ import com.typesafe.config.ConfigFactory
 object ChatServerApplication extends App {
   println("Starting Akka Chat Server Actor")
   val system = ActorSystem("AkkaChat", ConfigFactory.load.getConfig("chatserver"))
-  val server = system.actorOf(Props[ChatServerActor], name = "chatserver")
+  val server = system.actorOf(Props[Room], name = "chatserver")
   server ! StartUp
 }
 

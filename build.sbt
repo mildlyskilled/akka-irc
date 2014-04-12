@@ -9,9 +9,10 @@ resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/release
 scalaVersion := "2.10.2"
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka" %% "akka-actor" % "2.2.3",
-  "com.typesafe.akka" %% "akka-testkit" % "2.2.3",
-  "com.typesafe.akka" %% "akka-remote" % "2.2.3",
+  "com.typesafe.akka" %% "akka-actor" % "2.3.0",
+  "com.typesafe.akka" %% "akka-testkit" % "2.3.0",
+  "com.typesafe.akka" %% "akka-remote" % "2.3.0",
+  "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.0",
   "org.scala-lang" % "jline" % "2.10.3"
 )
 
