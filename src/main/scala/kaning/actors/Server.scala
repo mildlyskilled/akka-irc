@@ -24,6 +24,7 @@ object ChatServerActor {
   case class UserLeave(user: User) extends ChatServerCommand
   case class DeleteChannel(channelId: String) extends ChatServerCommand
   case object ListChannels extends ChatServerCommand
+  case object TakeSnapshot extends ChatServerCommand
 
   sealed trait ChatServerEvent
   case class CreatedChannel(channelId: String) extends ChatServerEvent
@@ -32,18 +33,18 @@ object ChatServerActor {
   case class UserLoggedIn(user: User) extends ChatServerEvent
   case class UserLeft(user: User) extends ChatServerEvent
   case class DeletedChannel(channelId: String) extends ChatServerEvent
+
+  case class ChatServerState(users: Seq[User], channels: Iterable[String]) extends Serializable
 }
 
-class ChatServerActor extends EventsourcedProcessor {
-  case class ChatServerState(users: Seq[User], channels: Iterable[String])
-  case object TakeSnapshot
+class ChatServerActor extends EventsourcedProcessor with Serializable {
 
   import ChatServerActor._
 
   var channels = Map.empty[String, ActorRef]
   var users = Seq.empty[User]
 
-  context.system.scheduler.schedule(2 minutes, 2 minutes, self, TakeSnapshot)(context.dispatcher)
+  context.system.scheduler.schedule(30 seconds, 30 seconds, self, TakeSnapshot)(context.dispatcher)
 
   def updateState(evt: ChatServerEvent) = evt match {
     case CreatedChannel(channelId) =>
@@ -66,8 +67,8 @@ class ChatServerActor extends EventsourcedProcessor {
       // TODO: Try using sender here!
       channels.get(channelId).foreach(_ ! PoisonPill)
       channels = channels - channelId
-      println(s"Channel $channelId deleted")
-    case evt => sys.error(s"Unrecognized event: $evt")
+    case evt =>
+      sys.error(s"Unrecognized event: $evt")
   }
 
   val receiveRecover: Receive = {
@@ -101,5 +102,10 @@ class ChatServerActor extends EventsourcedProcessor {
     case TakeSnapshot  =>
       println("Taking snapshot...")
       saveSnapshot(ChatServerState(users, channels.keys))
+    case SaveSnapshotFailure(metadata, reason) =>
+      println(s"Saving snapshot failed!\nSnapshot metadata $metadata\nReason: $reason")
+      reason.printStackTrace()
+    case SaveSnapshotSuccess(metadata) =>
+      println(s"Saving snapshot ok\nSnapshot metadata $metadata")
   }
 }
