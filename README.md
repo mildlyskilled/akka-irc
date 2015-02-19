@@ -2,6 +2,8 @@
 akka-irc
 ========
 
+Forked from: https://github.com/mildlyskilled/akka-irc
+
 A simple IRC-like client and server implementation in Scala and Akka. Thanks to the guys from LSUG for contributions to making it more Scala-esque. 
 
 How to run
