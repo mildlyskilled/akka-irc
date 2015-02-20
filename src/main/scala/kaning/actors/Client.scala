@@ -41,7 +41,7 @@ object ChatClientApplication {
     * in the actual IP address list found on this machine
     */
     val clientconfig = ConfigFactory.load.getConfig("chatclient")
-    val ipaddressinconfig = clientconfig.getString("akka.remote.netty.tcp.hostname")
+    val ipaddressinconfig = clientconfig.getString("akka.remote.netty.ssl.hostname")
 
     /**
     * If the ip address in our configuration is also in the ip addresses in this "distilled"
@@ -76,7 +76,7 @@ object ChatClientApplication {
     /**
     * Apply the ip address to the configuration we will be using to construct the client actor
     */
-    val clientConfig = ConfigFactory.parseString(s"""akka.remote.netty.tcp.hostname="$ipAddress" """)
+    val clientConfig = ConfigFactory.parseString(s"""akka.remote.netty.ssl.hostname="$ipAddress" """)
     val defaultConfig = ConfigFactory.load.getConfig("chatclient")
     val completeConfig = clientConfig.withFallback(defaultConfig)
 
@@ -90,9 +90,9 @@ object ChatClientApplication {
     * it from our nifty console input
     */
     val serverconfig = ConfigFactory.load.getConfig("chatserver")
-    val serverAddress = serverconfig.getString("akka.remote.netty.tcp.hostname")
-    val serverPort = serverconfig.getString("akka.remote.netty.tcp.port")
-    val serverPath = s"akka.tcp://AkkaChat@$serverAddress:$serverPort/user/chatserver"
+    val serverAddress = serverconfig.getString("akka.remote.netty.ssl.hostname")
+    val serverPort = serverconfig.getString("akka.remote.netty.ssl.port")
+    val serverPath = s"akka.ssl.tcp://AkkaChat@$serverAddress:$serverPort/user/chatserver"
     val server = system.actorSelection(serverPath) // <-- this is where we get the server reference
 
     // NOW CONSTRUCT THE CLIENT using as a member of the system defined above
