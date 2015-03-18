@@ -3,13 +3,7 @@ package kaning.actors
 import akka.actor._
 import akka.remote.RemoteScope
 import com.typesafe.config.ConfigFactory
-import kaning.messages.Unregister
-import kaning.messages.RegisteredClientList
-import kaning.messages.ChatMessage
-import kaning.messages.RegisterClientMessage
-import kaning.messages.ChatInfo
-import kaning.messages.PrivateMessage
-import kaning.messages.RegisteredClients
+import kaning.messages._
 import scala.tools.jline.console.ConsoleReader
 import java.net.{NetworkInterface, InetAddress}
 import scala.collection.JavaConversions._
@@ -35,7 +29,7 @@ object ChatClientApplication {
     * a null value
     */
     val ipAddresses = for( i <- interfaces) yield distillIpAddresses(i)
-    
+
     /**
     * First make sure the ip address in the configuration file is not 
     * in the actual IP address list found on this machine
@@ -63,15 +57,14 @@ object ChatClientApplication {
                 ip.trim
             }else{
                 ipAddresses.head
-            }    
+            }
         }else{
             ipaddressinconfig
         }
-        
     }
 
     // In some circles this would be the username
-    val identity = new ConsoleReader().readLine("identify yourself: ")
+    val user = User(new ConsoleReader().readLine("identify yourself: "))
 
     /**
     * Apply the ip address to the configuration we will be using to construct the client actor
@@ -84,7 +77,7 @@ object ChatClientApplication {
     * the parsed string and the default configs from the akka remote sub-system
     */
     val system = ActorSystem("AkkaChat", completeConfig)
-    
+
     /*
     * get the server reference here because we will bind and forward messages to
     * it from our nifty console input
@@ -96,17 +89,25 @@ object ChatClientApplication {
     val server = system.actorSelection(serverPath) // <-- this is where we get the server reference
 
     // NOW CONSTRUCT THE CLIENT using as a member of the system defined above
-    val client = system.actorOf(Props(classOf[ChatClientActor]), name = identity)
-    
+    val client = system.actorOf(Props(classOf[ChatClientActor]), name = user.identity)
+
     // some input parsing logic to filter out private messages and so special things to it
     // like NOT Broadcast it to all connected clients
     val privateMessageRegex = """^@([^\s]+) (.*)$""".r
-	
+
+    val createChannelRegex = """^/create (\w+)""".r
+
+    val joinChannelRegex = """^/join (\w+)""".r
+
+    val sendChannelMessageRegex = """^#(\w+) (.*)""".r
+
     // we can implement a help feature here to explain the protocol
     println("Type /join to join the chat room")
 
-    /* Iterate infinitely over a stream created from our jline console reader object and 
-    * use some functional concepts over this i.e. pattern matching takeWhile and the 
+    import ChatServerActor._
+
+    /* Iterate infinitely over a stream created from our jline console reader object and
+    * use some functional concepts over this i.e. pattern matching takeWhile and the
     * lovely foreach
     */
     Iterator.continually(new ConsoleReader().readLine("> ")).takeWhile(_ != "/exit").foreach { msg =>
@@ -114,26 +115,31 @@ object ChatClientApplication {
         case "/list" =>
           server.tell(RegisteredClients, client)
 
-        case "/join" =>
-          server.tell(RegisterClientMessage(client, identity), client)
+        case "/channels" =>
+          server.tell(ListChannels, client)
 
-        case "/leave" => 
-          server.tell(Unregister(identity), client)
-        
-        case "/offprotocol" => 
-          server.tell("OFF PROTOCOL MESSAGE", client)
-          
+        case createChannelRegex(channelName) =>
+          server.tell(CreateChannel(channelName, user), client)
+
+        case joinChannelRegex(channelName) =>
+          server.tell(JoinChannel(channelName, user), client)
+
+        case "/leave" =>
+          server.tell(Unregister(user), client)
+
         case privateMessageRegex(target, msg) =>
           server.tell(PrivateMessage(target, msg), client)
 
-        case _ =>
-          server.tell(ChatMessage(msg), client)
+        case sendChannelMessageRegex(channel, msg) =>
+          server.tell(ChatMessage(channel, msg), client)
+
+        case x => println(s"Unrecognized command: $x")
       }
     }
 
     println("Exiting...")
     // Tell the server to remove us from currently connected clients
-    server.tell(Unregister(identity), client)
+    server.tell(Unregister(user), client)
     //@TODO find a graceful way to exit the application here
 
   }
@@ -143,8 +149,8 @@ class ChatClientActor  extends Actor {
 
     def receive = {
 
-      case ChatMessage(message) =>
-        println(s"${sender.path.name}: $message")
+      case ChatMessage(channel, message) =>
+        println(s"${sender.path.name}@${channel}: $message")
 
       case ChatInfo(msg) =>
         println ("INFO: ["+ msg +"]")
@@ -153,6 +159,9 @@ class ChatClientActor  extends Actor {
         println(s"- ${sender.path.name}(PM): $message")
 
       case RegisteredClientList(list) =>
+        for (x <- list) println(x)
+
+      case ChannelList(list) =>
         for (x <- list) println(x)
 
       case _ => println("Client Received something")

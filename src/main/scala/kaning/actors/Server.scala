@@ -5,53 +5,107 @@ import collection.mutable.Map
 import kaning.messages._
 import kaning.actors._
 import com.typesafe.config.ConfigFactory
+import akka.persistence._
+import scala.concurrent.duration._
 
 object ChatServerApplication extends App {
   println("Starting Akka Chat Server Actor")
   val system = ActorSystem("AkkaChat", ConfigFactory.load.getConfig("chatserver"))
-  val server = system.actorOf(Props[Room], name = "chatserver")
+  val server = system.actorOf(Props[ChatServerActor], name = "chatserver")
   server ! StartUp
 }
 
-class ChatServerActor extends Actor {
+object ChatServerActor {
+  sealed trait ChatServerCommand
+  case class CreateChannel(channelId: String, user: User) extends ChatServerCommand
+  case class JoinChannel(channelId: String, user: User) extends ChatServerCommand
+  case class LeaveChannel(channelId: String, user: User) extends ChatServerCommand
+  case class UserLogin(user: User) extends ChatServerCommand
+  case class UserLeave(user: User) extends ChatServerCommand
+  case class DeleteChannel(channelId: String) extends ChatServerCommand
+  case object ListChannels extends ChatServerCommand
+  case object TakeSnapshot extends ChatServerCommand
 
-  val connectedClients:Map[String, ActorRef] = Map() //<-- this is a MUTABLE map
+  sealed trait ChatServerEvent
+  case class CreatedChannel(channelId: String) extends ChatServerEvent
+  case class JoinedChannel(channelId: String, user: User, sender: ActorRef) extends ChatServerEvent
+  case class LeftChannel(channelId: String, user: User, sender: ActorRef) extends ChatServerEvent
+  case class UserLoggedIn(user: User) extends ChatServerEvent
+  case class UserLeft(user: User) extends ChatServerEvent
+  case class DeletedChannel(channelId: String) extends ChatServerEvent
 
-  def receive = {
+  case class ChatServerState(users: Seq[User], channels: Iterable[String]) extends Serializable
+}
 
-    case m @ ChatMessage(x: String) =>
-      println(sender.path.name + ": " + x)
-      // send this message to everyone in the room except the person who sent it
-      connectedClients.values.filter(_ != sender).foreach(_.forward(m))
+class ChatServerActor extends EventsourcedProcessor with Serializable {
 
-    case RegisterClientMessage(client: ActorRef, identity: String) =>
-        if(connectedClients.contains(identity)){
-          println(s"${identity} tried to join AGAIN from ${client}")
-          sender ! ChatInfo(s"REGISTRATION FAILED: ${identity} is already registered")
-        }else{
-          println(s"${identity} joined this channel from ${client}")
-          connectedClients += (identity -> client)
-          sender ! ChatInfo("REGISTERED SUCCESSFULLY")
-          connectedClients.values.filter(_ != sender).foreach(_ ! ChatInfo(s"${identity} join this channel"))
-        }
+  import ChatServerActor._
 
-    case m @ PrivateMessage(target, _) =>
-      connectedClients.values.filter(_.path.name.contains(target)).foreach(_.forward(m))
+  var channels = Map.empty[String, ActorRef]
+  var users = Seq.empty[User]
 
-    case StartUp =>
-      println("Received Start Server Signal")
-      println(self)
+  context.system.scheduler.schedule(30 seconds, 30 seconds, self, TakeSnapshot)(context.dispatcher)
 
-    case RegisteredClients =>
-      println(s"${sender.path.name} requested for the room list")
-      sender ! RegisteredClientList(connectedClients.keys)
+  def updateState(evt: ChatServerEvent) = evt match {
+    case CreatedChannel(channelId) =>
+      val act = context.actorOf(Channel.props(channelId))
+      channels = channels + (channelId -> act)
+      println(s"Channel created: $channelId")
+    case msg@JoinedChannel(channelId, user, s) =>
+      channels.get(channelId).foreach(_.tell(msg, s))
+      println(s"User $user joined channel $channelId")
+    case msg@LeftChannel(channelId, user, s) =>
+      channels.get(channelId).foreach(_.tell(msg, s))
+      println(s"User $user left channel $channelId")
+    case UserLoggedIn(user) =>
+      users = users :+ user
+      println(s"User $user logged in")
+    case UserLeft(user) =>
+      users = users.filter(_ != user)
+      println(s"User $user logged out")
+    case DeletedChannel(channelId) =>
+      // TODO: Try using sender here!
+      channels.get(channelId).foreach(_ ! PoisonPill)
+      channels = channels - channelId
+    case evt =>
+      sys.error(s"Unrecognized event: $evt")
+  }
 
-    case Unregister(identity) =>
-        println(s"${identity} left this channel")
-        // remove client from registered client set and send poison pill
-        connectedClients.remove(identity).foreach(_ ! PoisonPill) //<-- this is why we use the MUTABLE map
-        connectedClients.values.filter(_ != sender).foreach(_ ! ChatInfo(s"${identity} left this channel"))
+  val receiveRecover: Receive = {
+    case evt: ChatServerEvent => updateState(evt)
+    case SnapshotOffer(_, ChatServerState(us, cs)) =>
+      channels = cs.foldLeft(Map.empty[String, ActorRef]) { (map, current) =>
+        map + (current -> context.actorOf(Channel.props(current)))
+      }
+      users = us
+  }
 
-    case _ => sender ! ChatInfo("Stop mumbling and articulate, you're off protocol buddy")
+  def receiveCommand: Receive = {
+    // TODO: Validate users and commands and everything
+    case CreateChannel(channelId, user) =>
+      persist(CreatedChannel(channelId))(updateState)
+      persist(JoinedChannel(channelId, user, sender))(updateState)
+    case JoinChannel(channelId, user) =>
+      persist(JoinedChannel(channelId, user, sender))(updateState)
+    case LeaveChannel(channelId, user) =>
+      persist(LeftChannel(channelId, user, sender))(updateState)
+    case UserLogin(user) =>
+      persist(UserLoggedIn(user))(updateState)
+    case UserLeave(user) =>
+      persist(UserLeft(user))(updateState)
+    case DeleteChannel(channelId) =>
+      persist(DeletedChannel(channelId))(updateState)
+    case ListChannels =>
+      sender ! ChannelList(channels.keys)
+    case m@ChatMessage(channel, msg) =>
+      channels.get(channel).foreach(_.forward(m))
+    case TakeSnapshot  =>
+      println("Taking snapshot...")
+      saveSnapshot(ChatServerState(users, channels.keys))
+    case SaveSnapshotFailure(metadata, reason) =>
+      println(s"Saving snapshot failed!\nSnapshot metadata $metadata\nReason: $reason")
+      reason.printStackTrace()
+    case SaveSnapshotSuccess(metadata) =>
+      println(s"Saving snapshot ok\nSnapshot metadata $metadata")
   }
 }

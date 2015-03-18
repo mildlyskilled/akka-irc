@@ -1,3 +1,7 @@
+*.sublime-project
+*.sublime-workspace
+snapshots/*
+journal/*
 logs
 project/project
 project/target
