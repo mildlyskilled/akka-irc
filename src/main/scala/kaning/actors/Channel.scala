@@ -16,6 +16,7 @@ object Channel {
 }
 
 class Channel(val channelId: String) extends Actor {
+
   import ChatServerActor.JoinedChannel
   import ChatServerActor.LeftChannel
 
@@ -27,21 +28,21 @@ class Channel(val channelId: String) extends Actor {
     case CheckForEmptyChannel =>
       if (connectedClients.isEmpty) context.parent ! DeleteChannel(channelId)
 
-    case m @ ChatMessage(_, x: String) =>
+    case m@ChatMessage(_, x: String) =>
       println(sender.path.name + ": " + x)
       // send this message to everyone in the room except the person who sent it
       connectedClients.values.filter(_ != sender).foreach(_.forward(m))
 
     case JoinedChannel(_, identity, clientRef) =>
-      if(connectedClients.contains(identity)){
+      if (connectedClients.contains(identity)) {
         clientRef ! ChatInfo(s"REGISTRATION FAILED: ${identity} is already registered")
-      }else{
+      } else {
         clientRef ! ChatInfo("REGISTERED SUCCESSFULLY")
         connectedClients.values.filter(_ != clientRef).foreach(_ ! ChatInfo(s"${identity} join this channel"))
         context.become(usersConnected(connectedClients + (identity -> clientRef)))
       }
 
-    case m @ PrivateMessage(target, _) =>
+    case m@PrivateMessage(target, _) =>
       connectedClients.values.filter(_.path.name.contains(target)).foreach(_.forward(m))
 
     case RegisteredClients =>

@@ -16,28 +16,46 @@ object ChatServerApplication extends App {
 }
 
 object ChatServerActor {
+
   sealed trait ChatServerCommand
+
   case class CreateChannel(channelId: String, user: User) extends ChatServerCommand
+
   case class JoinChannel(channelId: String, user: User) extends ChatServerCommand
+
   case class LeaveChannel(channelId: String, user: User) extends ChatServerCommand
+
   case class UserLogin(user: User) extends ChatServerCommand
+
   case class UserLeave(user: User) extends ChatServerCommand
+
   case class DeleteChannel(channelId: String) extends ChatServerCommand
+
   case object ListChannels extends ChatServerCommand
+
   case object TakeSnapshot extends ChatServerCommand
 
   sealed trait ChatServerEvent
+
   case class CreatedChannel(channelId: String) extends ChatServerEvent
+
   case class JoinedChannel(channelId: String, user: User, sender: ActorRef) extends ChatServerEvent
+
   case class LeftChannel(channelId: String, user: User, sender: ActorRef) extends ChatServerEvent
+
   case class UserLoggedIn(user: User) extends ChatServerEvent
+
   case class UserLeft(user: User) extends ChatServerEvent
+
   case class DeletedChannel(channelId: String) extends ChatServerEvent
 
   case class ChatServerState(users: Seq[User], channels: Iterable[String]) extends Serializable
+
 }
 
-class ChatServerActor extends EventsourcedProcessor with Serializable {
+class ChatServerActor extends PersistentActor with Serializable {
+
+  override def persistenceId = "sample-id-1"
 
   import ChatServerActor._
 
@@ -99,7 +117,7 @@ class ChatServerActor extends EventsourcedProcessor with Serializable {
       sender ! ChannelList(channels.keys)
     case m@ChatMessage(channel, msg) =>
       channels.get(channel).foreach(_.forward(m))
-    case TakeSnapshot  =>
+    case TakeSnapshot =>
       println("Taking snapshot...")
       saveSnapshot(ChatServerState(users, channels.keys))
     case SaveSnapshotFailure(metadata, reason) =>

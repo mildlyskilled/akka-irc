@@ -1,20 +1,25 @@
 package kaning.actors
 
 import akka.actor._
-import akka.remote.RemoteScope
 import com.typesafe.config.ConfigFactory
-import kaning.messages._
+
+import scala.collection.convert.Wrappers.JEnumerationWrapper
+import scala.collection.JavaConverters._
 import scala.tools.jline.console.ConsoleReader
-import java.net.{NetworkInterface, InetAddress}
-import scala.collection.JavaConversions._
+import java.net.NetworkInterface
+
+import kaning.messages._
 
 object ChatClientApplication {
 
-  def main(args:Array[String]) {
+  def main(args: Array[String]) {
 
 
-    def distillIpAddresses(interface:NetworkInterface):String = {
-        interface.getInterfaceAddresses.filter(_.getBroadcast != null).head.getAddress.getHostAddress
+    def distillIpAddresses(interface: NetworkInterface): String = {
+
+      val interfaceList = interface.getInterfaceAddresses
+      val i = for (interface <- interfaceList.asScala.filter(_.getBroadcast != null)) yield interface.getAddress.getHostAddress
+      i.mkString
     }
 
     println("Starting Akka Chat Client Actor")
@@ -24,52 +29,53 @@ object ChatClientApplication {
     */
     val interfaces = new JEnumerationWrapper(NetworkInterface.getNetworkInterfaces).toList.filter(!_.isLoopback).filter(_.isUp)
     /** Ideally this should give a list of ip addresses and then we choose the one we want
-    * but alas I am lazy so just pop the first ip address that works and use it instead
-    * I use getBroadcast here as a subtle way of filtering out IPV6 addresses they have 
-    * a null value
-    */
-    val ipAddresses = for( i <- interfaces) yield distillIpAddresses(i)
+      * but alas I am lazy so just pop the first ip address that works and use it instead
+      * I use getBroadcast here as a subtle way of filtering out IPV6 addresses they have
+      * a null value
+      */
+    val ipAddresses = for (i <- interfaces) yield distillIpAddresses(i)
 
     /**
-    * First make sure the ip address in the configuration file is not 
-    * in the actual IP address list found on this machine
-    */
+     * First make sure the ip address in the configuration file is not
+     * in the actual IP address list found on this machine
+     */
     val clientconfig = ConfigFactory.load.getConfig("chatclient")
     val ipaddressinconfig = clientconfig.getString("akka.remote.netty.tcp.hostname")
 
     /**
-    * If the ip address in our configuration is also in the ip addresses in this "distilled"
-    * list just use that otherwise if we have more than one give options and if there's only
-    * one IP address use that
-    */
+     * If the ip address in our configuration is also in the ip addresses in this "distilled"
+     * list just use that otherwise if we have more than one give options and if there's only
+     * one IP address use that
+     */
     val ipAddress = {
-        if(!ipAddresses.contains(ipaddressinconfig)){
-            if(ipAddresses.size > 1){
-                ipAddresses foreach println
-                var ip = ""
-                /**
-                * Make sure the IP address typed in here is valid otherwise this prompt
-                * will be displayed FOREVER (unitl a keyboard interrupt of course)
-                */
-                while(!ipAddresses.contains(ip.trim)){
-                    ip = new ConsoleReader().readLine("Which IP Address shall we bind to?  ")
-                }
-                ip.trim
-            }else{
-                ipAddresses.head
-            }
-        }else{
-            ipaddressinconfig
+      if (!ipAddresses.contains(ipaddressinconfig)) {
+        if (ipAddresses.size > 1) {
+          ipAddresses foreach println
+          var ip = ""
+
+          /**
+           * Make sure the IP address typed in here is valid otherwise this prompt
+           * will be displayed FOREVER (unitl a keyboard interrupt of course)
+           */
+          while (!ipAddresses.contains(ip.trim)) {
+            ip = new ConsoleReader().readLine("Which IP Address shall we bind to?  ")
+          }
+          ip.trim
+        } else {
+          ipAddresses.head
         }
+      } else {
+        ipaddressinconfig
+      }
     }
 
     // In some circles this would be the username
     val user = User(new ConsoleReader().readLine("identify yourself: "))
 
     /**
-    * Apply the ip address to the configuration we will be using to construct the client actor
-    */
-    val clientConfig = ConfigFactory.parseString(s"""akka.remote.netty.tcp.hostname="$ipAddress" """)
+     * Apply the ip address to the configuration we will be using to construct the client actor
+     */
+    val clientConfig = ConfigFactory.parseString( s"""akka.remote.netty.tcp.hostname="$ipAddress" """)
     val defaultConfig = ConfigFactory.load.getConfig("chatclient")
     val completeConfig = clientConfig.withFallback(defaultConfig)
 
@@ -110,34 +116,34 @@ object ChatClientApplication {
     * use some functional concepts over this i.e. pattern matching takeWhile and the
     * lovely foreach
     */
-    Iterator.continually(new ConsoleReader().readLine("> ")).takeWhile(_ != "/exit").foreach { msg =>
-      msg match {
-        case "/list" =>
-          server.tell(RegisteredClients, client)
+    Iterator.continually(new ConsoleReader().readLine("> ")).takeWhile(_ != "/exit").foreach {
+      case "/list" =>
+        server.tell(RegisteredClients, client)
 
-        case "/channels" =>
-          server.tell(ListChannels, client)
+      case "/channels" =>
+        server.tell(ListChannels, client)
 
-        case createChannelRegex(channelName) =>
-          server.tell(CreateChannel(channelName, user), client)
+      case createChannelRegex(channelName) =>
+        server.tell(CreateChannel(channelName, user), client)
 
-        case joinChannelRegex(channelName) =>
-          server.tell(JoinChannel(channelName, user), client)
+      case joinChannelRegex(channelName) =>
+        server.tell(JoinChannel(channelName, user), client)
 
-        case "/leave" =>
-          server.tell(Unregister(user), client)
+      case "/leave" =>
+        server.tell(Unregister(user), client)
 
-        case privateMessageRegex(target, msg) =>
-          server.tell(PrivateMessage(target, msg), client)
+      case privateMessageRegex(target, msg) =>
+        server.tell(PrivateMessage(target, msg), client)
 
-        case sendChannelMessageRegex(channel, msg) =>
-          server.tell(ChatMessage(channel, msg), client)
+      case sendChannelMessageRegex(channel, msg) =>
+        server.tell(ChatMessage(channel, msg), client)
 
-        case x => println(s"Unrecognized command: $x")
-      }
+      case x => println(s"Unrecognized command: $x")
     }
 
     println("Exiting...")
+
+    system.shutdown()
     // Tell the server to remove us from currently connected clients
     server.tell(Unregister(user), client)
     //@TODO find a graceful way to exit the application here
@@ -145,25 +151,25 @@ object ChatClientApplication {
   }
 }
 
-class ChatClientActor  extends Actor {
+class ChatClientActor extends Actor {
 
-    def receive = {
+  def receive = {
 
-      case ChatMessage(channel, message) =>
-        println(s"${sender.path.name}@${channel}: $message")
+    case ChatMessage(channel, message) =>
+      println(s"${sender.path.name}@${channel}: $message")
 
-      case ChatInfo(msg) =>
-        println ("INFO: ["+ msg +"]")
+    case ChatInfo(msg) =>
+      println("INFO: [" + msg + "]")
 
-      case PrivateMessage(_, message) =>
-        println(s"- ${sender.path.name}(PM): $message")
+    case PrivateMessage(_, message) =>
+      println(s"- ${sender.path.name}(PM): $message")
 
-      case RegisteredClientList(list) =>
-        for (x <- list) println(x)
+    case RegisteredClientList(list) =>
+      for (x <- list) println(x)
 
-      case ChannelList(list) =>
-        for (x <- list) println(x)
+    case ChannelList(list) =>
+      for (x <- list) println(x)
 
-      case _ => println("Client Received something")
-   }
+    case _ => println("Client Received something")
+  }
 }
