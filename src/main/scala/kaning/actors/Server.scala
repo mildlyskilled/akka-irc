@@ -55,7 +55,7 @@ object ChatServerActor {
 
 class ChatServerActor extends PersistentActor with Serializable {
 
-  override def persistenceId = "sample-id-1"
+  override def persistenceId = "akka-persistent-server"
 
   import ChatServerActor._
 
